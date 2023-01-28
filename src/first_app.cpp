@@ -17,7 +17,10 @@
 #include <cassert>
 #include <chrono>
 #include <stdexcept>
+#include <iostream>
 
+// jam
+#include "jam_CASystem.hpp"
 namespace lve {
 
 FirstApp::FirstApp() {
@@ -32,6 +35,31 @@ FirstApp::FirstApp() {
 FirstApp::~FirstApp() {}
 
 void FirstApp::run() {
+
+  
+  
+  // ***_ JAM start _*** //
+  int caRows = 40;
+  int caCols = 40;
+  jam::CASystem cellularAutomata{caRows, caCols};
+  std::shared_ptr<LveModel> myCubeModel = LveModel::createModelFromFile(lveDevice, "models/cube.obj");
+  std::vector<std::vector<lve::LveGameObject*>> gameObjectsGrid;
+  gameObjectsGrid.resize(caRows, std::vector<lve::LveGameObject*>(caCols));
+  for (int i = 0; i < caRows; i++) {
+      for (int j = 0; j < caCols; j++) {
+        auto newGameObj = LveGameObject::createGameObject();
+        newGameObj.model = myCubeModel;
+        float scaleFactor = 0.21;
+        newGameObj.transform.translation = { float(i) * scaleFactor, float(-j) * scaleFactor, 0.f};
+        newGameObj.transform.scale = {0.1f, 0.1f, 0.1f};
+        gameObjects.emplace(newGameObj.getId(), std::move(newGameObj));
+        gameObjectsGrid[i][j] = &gameObjects.at(newGameObj.getId());
+      }
+  }
+  // ***_ JAM end _*** //
+  
+  
+  
   std::vector<std::unique_ptr<LveBuffer>> uboBuffers(LveSwapChain::MAX_FRAMES_IN_FLIGHT);
   for (int i = 0; i < uboBuffers.size(); i++) {
     uboBuffers[i] = std::make_unique<LveBuffer>(
@@ -68,16 +96,43 @@ void FirstApp::run() {
 
   auto viewerObject = LveGameObject::createGameObject();
   viewerObject.transform.translation.z = -2.5f;
+  viewerObject.transform.translation.y = -1.3f;
   KeyboardMovementController cameraController{};
-
   auto currentTime = std::chrono::high_resolution_clock::now();
+  float caStepTimer = 0.f;
+  float caResetTimer = 0.f;
   while (!lveWindow.shouldClose()) {
     glfwPollEvents();
-
     auto newTime = std::chrono::high_resolution_clock::now();
     float frameTime =
         std::chrono::duration<float, std::chrono::seconds::period>(newTime - currentTime).count();
-    currentTime = newTime;
+    currentTime = newTime;  
+      
+  
+  
+      // ***_ JAM start _*** //
+      caStepTimer += frameTime;
+      if ( caStepTimer > 1.0f) { // step every seconds.
+        cellularAutomata.step();
+        caStepTimer = 0.0;
+      } 
+      caResetTimer += frameTime;
+      if ( caResetTimer > 5.0f) { // step every seconds.
+        cellularAutomata.initialiseValues();
+        caResetTimer = 0.0;
+      } 
+
+
+
+      // set cube positions :
+      for (int i = 0; i < caRows; i++) {
+        for (int j = 0; j < caCols; j++) {
+          gameObjectsGrid[i][j]->transform.translation.z = float(cellularAutomata.grid[i][j]);
+        }
+      }
+      // ***_ JAM end _*** //
+
+
 
     cameraController.moveInPlaneXZ(lveWindow.getGLFWwindow(), frameTime, viewerObject);
     camera.setViewYXZ(viewerObject.transform.translation, viewerObject.transform.rotation);
@@ -120,19 +175,20 @@ void FirstApp::run() {
 }
 
 void FirstApp::loadGameObjects() {
+  
   std::shared_ptr<LveModel> lveModel =
       LveModel::createModelFromFile(lveDevice, "models/flat_vase.obj");
   auto flatVase = LveGameObject::createGameObject();
   flatVase.model = lveModel;
-  flatVase.transform.translation = {-.5f, .0f, 0.f};
-  flatVase.transform.scale = {3.f, 1.5f, 3.f};
+  flatVase.transform.translation = {1.f, .0f, 0.f};
+  flatVase.transform.scale = {0.1f, 0.1f, 0.1f};
   gameObjects.emplace(flatVase.getId(), std::move(flatVase));
 
   lveModel = LveModel::createModelFromFile(lveDevice, "models/smooth_vase.obj");
   auto smoothVase = LveGameObject::createGameObject();
   smoothVase.model = lveModel;
-  smoothVase.transform.translation = {.5f, .0f, 0.f};
-  smoothVase.transform.scale = {3.f, 1.5f, 3.f};
+  smoothVase.transform.translation = {.0f, 0.0f, 1.f};
+  smoothVase.transform.scale = {0.1f, 0.1f, 0.1f};
   gameObjects.emplace(smoothVase.getId(), std::move(smoothVase));
 
   lveModel = LveModel::createModelFromFile(lveDevice, "models/quad.obj");
@@ -145,10 +201,10 @@ void FirstApp::loadGameObjects() {
   lveModel = LveModel::createModelFromFile(lveDevice, "models/cube.obj");
   auto cube = LveGameObject::createGameObject();
   cube.model = lveModel;
-  cube.transform.translation = { 0.0f, 0.0f, 0.0f};
-  cube.transform.scale = {0.1, 0.1f, .1f};
+  cube.color = glm::vec3(1.f, 0.1f,0.1f);
+  cube.transform.translation = {0.0f, 0.0f, 0.0f};
+  cube.transform.scale = {0.1f, 0.1f, 0.1f};
   gameObjects.emplace(cube.getId(), std::move(cube));
-
 
   std::vector<glm::vec3> lightColors{
       {1.f, .1f, .1f},
